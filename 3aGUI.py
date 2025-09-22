@@ -5,10 +5,16 @@ from imu_win import open_imu_window
 from motor_win import open_motor_window
 from LC_win import open_lc_window
 
+FONTCOLOR = "#E0E0E0"
+BUTTONCOLOR = "#444444"
+WINDOWCOLOR = "#121212"
 
-#class NSATApp:
-    #def __init__(self, root):
-        #self.root = root
+root = tk.Tk() # create root window
+canvas = tk.Canvas(root, 
+                   width = 1280, 
+                   height = 720, 
+                   bg = WINDOWCOLOR, 
+                   highlightthickness = 0) # create canvas
 
 # global variables
 imuWindow = None
@@ -21,23 +27,6 @@ staticWindow = None
 staticCanvas = None
 dynamicWindow = None
 dynamicCanvas = None
-
-# FIXME: idk if this is right (initialization of entry variables)
-pull_accel_val = None
-pull_decel_val = None
-pull_rot_val = None
-pull_speed_val = None
-
-dark = True # start program in dark mode
-
-FONTCOLOR = "#E0E0E0"
-BUTTONCOLOR = "#444444"
-WINDOWCOLOR = "#121212"
-
-# initialize status rectangle colors as grey, will be changed immediately on startup based on connection status
-imu_color = BUTTONCOLOR 
-motor_color = BUTTONCOLOR
-lc_color = BUTTONCOLOR
 
 # declare dictionaries for storing element configs
 rects = {} 
@@ -55,9 +44,40 @@ lcButtons = {}
 lcLabels = {}
 lcTexts = {}
 
+# StringVars
+static_motor_direction = tk.StringVar(value = "extension") 
+dynamic_motor_direction = tk.StringVar(value = "extension")
+anticipation = tk.StringVar(value = "anticipated") 
+static_log_name = tk.StringVar()
+dynamic_log_name = tk.StringVar()
+pulltime_val = tk.StringVar() 
+time_window_val = tk.StringVar()
+log_time_pre_val = tk.StringVar()
+log_time_post_val = tk.StringVar()
+avg_force = tk.StringVar(value = '-') 
+max_force = tk.StringVar(value = '-')
+ang_disp_x = tk.StringVar(value = '-')
+ang_disp_y = tk.StringVar(value = '-')
+ang_disp_z = tk.StringVar(value = '-')
+max_vel_x = tk.StringVar(value = '-')
+max_vel_y = tk.StringVar(value = '-')
+max_vel_z = tk.StringVar(value = '-')
+max_accel_x = tk.StringVar(value = '-')
+max_accel_y = tk.StringVar(value = '-')
+max_accel_z = tk.StringVar(value = '-')
 
-root = tk.Tk() # create root window
-canvas = tk.Canvas(root, width = 1280, height = 720, bg = WINDOWCOLOR, highlightthickness = 0) # create canvas
+# FIXME: change to StringVar
+pull_accel_val = None
+pull_decel_val = None
+pull_rot_val = None
+pull_speed_val = None
+
+dark = True # start program in dark mode
+
+# initialize status rectangle colors as grey, will be changed immediately on startup based on connection status
+imu_color = BUTTONCOLOR 
+motor_color = BUTTONCOLOR
+lc_color = BUTTONCOLOR
 
 #=============function definitions=============
 def disable_close(): # disable closing with [x]
@@ -128,12 +148,12 @@ def create_radiobutton(parent, text, variable, value, width=10,
         cursor="hand2"
     )
 
-def create_entry(parent, textvar, width):
+def create_entry(parent, textvar, width, font = ("Courier", 14)):
     return tk.Entry(
             master = parent, 
             textvariable = textvar, 
             width = width, 
-            font = ("Courier", 14), 
+            font = font, 
             bg = BUTTONCOLOR, 
             fg = FONTCOLOR, 
             insertbackground = FONTCOLOR, 
@@ -545,6 +565,7 @@ def placeButtons(): # place all buttons
     buttons["static_right_lateral"].place(x = 460, y = 235)
     buttons["start_static"].place(x = 30, y = 280)
     buttons["static_log_entry"].place(x = 966, y = 270)
+    buttons["dynamic_log_entry"].place(x = 966, y = 417)
     buttons["darkButton"].place(x = 1225, y = 675)
     buttons["anticipated"].place(x = 20, y = 400) 
     buttons["unanticipated"].place(x = 190, y = 400)
@@ -560,7 +581,6 @@ def placeButtons(): # place all buttons
     buttons["pull_rot_entry"].place(x = 710, y = 587)
     buttons["pull_speed_entry"].place(x = 710, y = 627)
     buttons["start_dynamic"].place(x = 30, y = 660)
-    buttons["dynamic_log_entry"].place(x = 966, y = 417)
 
 def setupWindow(): # window setup information
     root.title("NSAT Prototype 3a")
@@ -580,32 +600,12 @@ button_configs = {
     "standaloneIMUbutton": {"text": "IMU", "command": standaloneIMU},
     "standaloneMotorButton": {"text": "Motor", "command": standaloneMotor},
     "standalonelcButton": {"text": "Load Cell", "command": standalonelc},
-    "fileLocationButton": {"text": "Choose Folder", "command": chooseFolder, "width": 13, "font": ("Courier", 12)},
+    "fileLocationButton": {"text": "Choose Folder", "command": chooseFolder, "width": 13, "font": ("Courier", 11)},
     "exitButton": {"text": "Exit", "command": exitFunction, "width": 5, "font": ("Courier", 10)},
     "start_static": {"text": "Start Static", "command": startStatic, "width": 14},
     "start_dynamic": {"text": "Start Dynamic", "command": startDynamic, "width": 14},
     "darkButton": {"text": "⏾", "command": darkLight, "width": 3, "font": ("Courier", 16)},
 }
-
-static_motor_direction = tk.StringVar(value = "extension") 
-dynamic_motor_direction = tk.StringVar(value = "extension")
-anticipation = tk.StringVar(value = "anticipated") 
-pulltime_val = tk.StringVar() 
-time_window_val = tk.StringVar()
-log_time_pre_val = tk.StringVar()
-log_time_post_val = tk.StringVar()
-avg_force = tk.StringVar(value = '-') 
-max_force = tk.StringVar(value = '-')
-
-ang_disp_x = tk.StringVar(value = '-')
-ang_disp_y = tk.StringVar(value = '-')
-ang_disp_z = tk.StringVar(value = '-')
-max_vel_x = tk.StringVar(value = '-')
-max_vel_y = tk.StringVar(value = '-')
-max_vel_z = tk.StringVar(value = '-')
-max_accel_x = tk.StringVar(value = '-')
-max_accel_y = tk.StringVar(value = '-')
-max_accel_z = tk.StringVar(value = '-')
 
 radio_configs = {
     "static_extension": {"text": "Extension", "variable": static_motor_direction, "value": "extension", "width": 8},
@@ -621,6 +621,8 @@ radio_configs = {
 }
 
 entry_configs = {
+    "static_log_entry": {"textvar": static_log_name, "width": 25, "font": ("Courier", 11)},
+    "dynamic_log_entry": {"textvar": dynamic_log_name, "width": 25, "font": ("Courier", 11)},
     "pulltime_entry": {"textvar": pulltime_val, "width": 4},
     "time_window_entry": {"textvar": time_window_val, "width": 4},
     "log_time_pre_entry": {"textvar": log_time_pre_val, "width": 4},
