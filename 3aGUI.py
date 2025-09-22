@@ -319,7 +319,6 @@ def darkLight(): # change visual mode
     for name, button in buttons.items():
         if name == "reloadButton": # reload button should have transparent background
             button.config(bg = WINDOWCOLOR, activebackground = WINDOWCOLOR, fg = FONTCOLOR, activeforeground = BUTTONCOLOR)
-        elif name.endswith("_entry"): 
         elif name.endswith("_entry"):
             button.config(bg = BUTTONCOLOR, fg = FONTCOLOR, insertbackground = FONTCOLOR)
         elif name.startswith("static_") or name.startswith("dynamic_") or name in ("anticipated", "unanticipated"):
@@ -336,7 +335,6 @@ def darkLight(): # change visual mode
 
 def imu_status(): # imu connection confirmation TODO: implement
     return random.choice([True, False])
-
 def motor_status():# motor connection confirmation TODO: implement
     return random.choice([True, False])
 def lc_status():# load cell connection confirmation TODO: implement
@@ -421,19 +419,19 @@ def startStatic(): #TODO: implement data output
         staticWindow, staticCanvas = create_window("Static Test", 500, 500)
 
             # create text
-            texts["static_header"] = staticCanvas.create_text(250, 70, text = "Starting in:", font = ("Courier", 30, "bold underline"), fill = FONTCOLOR)
-            texts["static_timer"] = staticCanvas.create_text(250, 250, font = ("Courier", 50, "bold"), fill = FONTCOLOR)
+        texts["static_header"] = staticCanvas.create_text(250, 70, text = "Starting in:", font = ("Courier", 30, "bold underline"), fill = FONTCOLOR)
+        texts["static_timer"] = staticCanvas.create_text(250, 250, font = ("Courier", 50, "bold"), fill = FONTCOLOR)
 
-            def countdown(): # countdown from 5, display amt. of time left on screen
-                nonlocal time_left_down
-                if time_left_down > 0 and staticWindow.winfo_exists(): 
-                    staticCanvas.itemconfig(texts["static_timer"], text = str(time_left_down))
-                    time_left_down -= 1
-                    staticWindow.after(1000, countdown)
-                else: # after countdown
-                    staticCanvas.itemconfig(texts["static_header"], text = "Start Pull:")
-                    texts["recording"] = staticCanvas.create_text(257, 330, text = "Recording...", font = ("Courier", 20, "bold"), fill = FONTCOLOR)
-                    countup()
+        def countdown(): # countdown from 5, display amt. of time left on screen
+            nonlocal time_left_down
+            if time_left_down > 0 and staticWindow.winfo_exists(): 
+                staticCanvas.itemconfig(texts["static_timer"], text = str(time_left_down))
+                time_left_down -= 1
+                staticWindow.after(1000, countdown)
+            else: # after countdown
+                staticCanvas.itemconfig(texts["static_header"], text = "Start Pull:")
+                texts["recording"] = staticCanvas.create_text(257, 330, text = "Recording...", font = ("Courier", 20, "bold"), fill = FONTCOLOR)
+                countup()
 
             def countup(): # count up to pulltime, close window
                     nonlocal time_left_up
@@ -446,7 +444,6 @@ def startStatic(): #TODO: implement data output
             countdown()
 
 def startDynamic(): #TODO: implement data output
-    
     if anticipation.get() == "anticipated":
         anticipated()
     if anticipation.get() == "unanticipated":
@@ -589,6 +586,26 @@ button_configs = {
     "start_dynamic": {"text": "Start Dynamic", "command": startDynamic, "width": 14},
     "darkButton": {"text": "⏾", "command": darkLight, "width": 3, "font": ("Courier", 16)},
 }
+
+static_motor_direction = tk.StringVar(value = "extension") 
+dynamic_motor_direction = tk.StringVar(value = "extension")
+anticipation = tk.StringVar(value = "anticipated") 
+pulltime_val = tk.StringVar() 
+time_window_val = tk.StringVar()
+log_time_pre_val = tk.StringVar()
+log_time_post_val = tk.StringVar()
+avg_force = tk.StringVar(value = '-') 
+max_force = tk.StringVar(value = '-')
+
+ang_disp_x = tk.StringVar(value = '-')
+ang_disp_y = tk.StringVar(value = '-')
+ang_disp_z = tk.StringVar(value = '-')
+max_vel_x = tk.StringVar(value = '-')
+max_vel_y = tk.StringVar(value = '-')
+max_vel_z = tk.StringVar(value = '-')
+max_accel_x = tk.StringVar(value = '-')
+max_accel_y = tk.StringVar(value = '-')
+max_accel_z = tk.StringVar(value = '-')
 
 radio_configs = {
     "static_extension": {"text": "Extension", "variable": static_motor_direction, "value": "extension", "width": 8},
