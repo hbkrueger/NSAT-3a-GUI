@@ -84,16 +84,6 @@ def create_window(title, width, height):
         pass
     window.protocol("WM_DELETE_WINDOW", disable_close)
 
-    return window, canvas
-   
-def create_button(text, command, width, height, font = ("Courier, 14")):
-
-    return tk.Button(self.root, text=text, command=command,
-        width=width, height=height, font=font,
-        bg=self.BUTTONCOLOR, fg=self.FONTCOLOR,
-        activebackground=self.WINDOWCOLOR,
-        activeforeground="white")
-
 def anticipated():
     global dynamicWindow
     global dynamicCanvas
@@ -103,7 +93,7 @@ def anticipated():
                 time_window = int(time_window_val.get())
                 post_log = int(log_time_post_val.get())
             except ValueError: # TODO: need to catch for non-entered motor controls too
-                messagebox.showinfo("Error", "Enter integer values into both \n\"Time Window\" and \"Log Time Post\".")
+                messagebox.showerror("Error", "Enter integer values into both \n\"Time Window\" and \"Log Time Post\".")
                 return
             
             dynamicWindow, dynamicCanvas = create_window("Dynamic Anticipated", 500, 500)
@@ -147,11 +137,11 @@ def unanticipated():
                 pre_log = int(log_time_pre_val.get())
 
             except ValueError: # TODO: need to catch for non-entered motor controls too
-                messagebox.showinfo("Error", "Enter integer values into \n\"Time Window\", \"Log Time Pre\", and \"Log Time Post\".")
+                messagebox.showerror("Error", "Enter integer values into \n\"Time Window\", \"Log Time Pre\", and \"Log Time Post\".")
                 return
             
             if pre_log + post_log > time_window:
-                messagebox.showinfo("Error", "The sum of \"Log Time Post\" and \"Log Time Pre\" are greater than \"Time Window\".")
+                messagebox.showerror("Error", "The sum of \"Log Time Post\" and \"Log Time Pre\" are greater than \"Time Window\".")
                 return
             
             dynamicWindow, dynamicCanvas = create_window("Dynamic Unanticipated", 500, 500)
@@ -272,7 +262,7 @@ def darkLight(): # change visual mode
     for name, button in buttons.items():
         if name == "reloadButton": # reload button should have transparent background
             button.config(bg = WINDOWCOLOR, activebackground = WINDOWCOLOR, fg = FONTCOLOR, activeforeground = BUTTONCOLOR)
-        elif name in ("pulltime_entry", "time_window_entry", "log_time_pre_entry", "log_time_post_entry", "pull_accel_entry", "pull_decel_entry", "pull_rot_entry", "pull_speed_entry"):
+        elif name.endswith("_entry"): 
             button.config(bg = BUTTONCOLOR, fg = FONTCOLOR, insertbackground = FONTCOLOR)
         elif name in ("static_extension", "static_left_lateral", "static_flexion", "static_right_lateral", "anticipated", "unanticipated", "dynamic_extension", "dynamic_left_lateral", "dynamic_flexion", "dynamic_right_lateral"):
             button.config(bg = WINDOWCOLOR, activebackground = WINDOWCOLOR, activeforeground = FONTCOLOR, fg = FONTCOLOR, selectcolor = BUTTONCOLOR)
@@ -283,14 +273,11 @@ def darkLight(): # change visual mode
             label.config(fg = FONTCOLOR, bg = BUTTONCOLOR)
 
     for line in lines.values():
-        if not dark:
-            canvas.itemconfig(line, width = 1)
-        else:
-            canvas.itemconfig(line, width = 2)
+        canvas.itemconfig(line, fill = FONTCOLOR)
 
 def imu_status(): # imu connection confirmation TODO: implement
-
     return random.choice([True, False])
+
 def motor_status():# motor connection confirmation TODO: implement
     return random.choice([True, False])
 def lc_status():# load cell connection confirmation TODO: implement
@@ -307,28 +294,37 @@ def reloadConnections(): # update each rectangle's fill color depending on conne
 
 def standaloneIMU(): # open IMU window
     global imuWindow, imuCanvas, imuExit, imuButtons, imuLabels, imuTexts
-    if imuWindow is None or not imuWindow.winfo_exists(): # if imuWindow isn't open
-        imuWindow, imuCanvas, imuButtons, imuLabels, imuTexts = open_imu_window(WINDOWCOLOR, BUTTONCOLOR, FONTCOLOR) # unpack + pass current color for its colors
+    if canvas.itemcget(rects["imu"], "fill") == "green":
+        if (imuWindow is None or not imuWindow.winfo_exists()): # if imuWindow isn't open
+            imuWindow, imuCanvas, imuButtons, imuLabels, imuTexts = open_imu_window(WINDOWCOLOR, BUTTONCOLOR, FONTCOLOR) # unpack + pass current color for its colors
+        else:
+            imuWindow.lift() 
     else:
-        imuWindow.lift() 
+        messagebox.showerror("IMU Error", "IMU not connected.")
 
     #TODO create IMU graph, make start button work, read IMU data correctly
 
 def standaloneMotor():# open motor window
     global motorWindow, motorCanvas, motorButtons, motorTexts
-    if motorWindow is None or not motorWindow.winfo_exists(): 
-        motorWindow, motorCanvas, motorButtons, motorTexts = open_motor_window(WINDOWCOLOR, BUTTONCOLOR, FONTCOLOR)
+    if canvas.itemcget(rects["motor"], "fill") == "green":
+        if motorWindow is None or not motorWindow.winfo_exists(): 
+            motorWindow, motorCanvas, motorButtons, motorTexts = open_motor_window(WINDOWCOLOR, BUTTONCOLOR, FONTCOLOR)
+        else:
+            motorWindow.lift() 
     else:
-        motorWindow.lift() 
+        messagebox.showerror("Motor Error", "Motor not connected.")
     #TODO direct control
     pass
 
 def standalonelc(): # open load cell window
     global lcWindow, lcCanvas, lcButtons, lcLabels, lcTexts
-    if lcWindow is None or not lcWindow.winfo_exists(): 
-        lcWindow, lcCanvas, lcButtons, lcLabels, lcTexts = open_lc_window(WINDOWCOLOR, BUTTONCOLOR, FONTCOLOR)
+    if canvas.itemcget(rects["lc"], "fill") == "green":
+        if lcWindow is None or not lcWindow.winfo_exists(): 
+            lcWindow, lcCanvas, lcButtons, lcLabels, lcTexts = open_lc_window(WINDOWCOLOR, BUTTONCOLOR, FONTCOLOR)
+        else:
+            lcWindow.lift() 
     else:
-        lcWindow.lift() 
+        messagebox.showerror("Load Cell Error", "Load cell not connected.")
     #TODO live readings
     pass
 
@@ -339,13 +335,13 @@ def chooseFolder(): # choose root folder
         return None
     
     # truncate path if too long
-    if len(folder_path) <= 22: 
+    if len(folder_path) <= 33: 
         truncated_path = folder_path  
     else:
-        truncated_path = folder_path[:22] + "..." 
+        truncated_path = folder_path[:33] + "..." 
 
     if "path" not in texts: # if first time
-        texts["path"] = canvas.create_text(830, 81, text = truncated_path, font = ("Courier", 11), fill = FONTCOLOR, anchor = "nw") # print truncated path
+        texts["path"] = canvas.create_text(790, 81, text = truncated_path, font = ("Courier", 11), fill = FONTCOLOR, anchor = "nw") # print truncated path
     else:
         canvas.itemconfig(texts["path"], text = truncated_path) # replace old text with new 
 
@@ -359,7 +355,7 @@ def startStatic(): #TODO: implement data output
     try:
         pulltime = int(pulltime_val.get())
     except ValueError:
-        messagebox.showinfo("Error", "Enter an integer value into \"Pull Time\".")
+        messagebox.showerror("Error", "Enter an integer value into \"Pull Time\".")
         return
 
     if pulltime_val.get(): # if user has entered time
@@ -409,46 +405,44 @@ def setupWindow(): # window setup information
 
 def canvasElements(): # define and place all canvas elements
     # lines
-    lines[1] = canvas.create_line(10, 150, 1270, 150, fill = "black", width = 2)
-    lines[2] = canvas.create_line(300, 10, 300, 140, fill = "black", width = 2)
-    lines[3] = canvas.create_line(770, 10, 770, 140, fill = "black", width = 2)
-    lines[4] = canvas.create_line(650, 160, 650, 325, fill = "black", width = 2)
-    lines[5] = canvas.create_line(10, 335, 1270, 335, fill = "black", width = 2)
-    lines[6] = canvas.create_line(381, 400, 381, 465, fill = "black", width = 2)
-    lines[7] = canvas.create_line(785, 345, 785, 710, fill = "black", width = 2)
+    lines[1] = canvas.create_line(10, 150, 1270, 150, fill = FONTCOLOR, width = 2)
+    lines[2] = canvas.create_line(300, 10, 300, 140, fill = FONTCOLOR, width = 1)
+    lines[3] = canvas.create_line(780, 10, 780, 140, fill = FONTCOLOR, width = 1)
+    lines[4] = canvas.create_line(780, 160, 780, 325, fill = FONTCOLOR, width = 1) 
+    lines[5] = canvas.create_line(10, 335, 1270, 335, fill = FONTCOLOR, width = 2)
+    lines[6] = canvas.create_line(381, 400, 381, 465, fill = FONTCOLOR, width = 1)
+    lines[7] = canvas.create_line(780, 345, 780, 710, fill = FONTCOLOR, width = 1)
     # connection info
-    texts["connection_info"] = canvas.create_text(125, 24, text = "Connection Info", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
-    texts["imu_status"] = canvas.create_text(129, 60, text = "IMU Status", font = ("Courier", 14), fill = FONTCOLOR) 
+    texts["connection_info"] = canvas.create_text(125, 24, text = "Component Status", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
+    texts["imu_status"] = canvas.create_text(88, 60, text = "IMU", font = ("Courier", 14), fill = FONTCOLOR) 
     rects["imu"] = canvas.create_rectangle(40, 53, 55, 68, fill = imu_color, outline = "black", width = 2) # imu_color = red/green depending on connection
-    texts["motor_status"] = canvas.create_text(141, 90, text = "Motor Status", font = ("Courier", 14), fill = FONTCOLOR) 
+    texts["motor_status"] = canvas.create_text(100, 90, text = "Motor", font = ("Courier", 14), fill = FONTCOLOR) 
     rects["motor"] = canvas.create_rectangle(40, 83, 55, 98, fill = motor_color, outline = "black", width = 2) # motor_color = red/green depending on connection
-    texts["load_cell_status"] = canvas.create_text(163, 120, text = "Load Cell Status", font = ("Courier", 14), fill = FONTCOLOR) 
+    texts["load_cell_status"] = canvas.create_text(122, 120, text = "Load Cell", font = ("Courier", 14), fill = FONTCOLOR) 
     rects["lc"] = canvas.create_rectangle(40, 113, 55, 128, fill = lc_color, outline = "black", width = 2) # lc_color = red/green depending on connection
 
     # standalone tests
-    texts["standalone_testing"] = canvas.create_text(535, 24, text = "Standalone Testing", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
+    texts["component_testing"] = canvas.create_text(535, 24, text = "Component Testing", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
 
     # choose directory
     texts["choose_directory"] = canvas.create_text(1010, 24, text = "Choose Directory", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
-    rects["path_rect"] = canvas.create_rectangle(820, 74, 1090, 103, fill = BUTTONCOLOR, width = 1)
-    texts["folder_symbol"] = canvas.create_text(1076, 88, text = "📁", font = ("Courier", 16), fill = FONTCOLOR)
+    rects["path_rect"] = canvas.create_rectangle(795, 74, 1140, 103, fill = BUTTONCOLOR, width = 1)
+    texts["folder_symbol"] = canvas.create_text(1126, 88, text = "📁", font = ("Courier", 16), fill = FONTCOLOR)
 
     # static assessment
-    texts["static_assessment"] = canvas.create_text(135, 180, text = "Static Assessment", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
+    texts["static_assessment"] = canvas.create_text(20, 165, text = "Static Assessment", font = ("Courier", 16, "underline"), fill = FONTCOLOR, anchor = "nw")
     texts["pull_time"] = canvas.create_text(120, 232, text = "Pull time (sec):", font = ("Courier", 14), fill = FONTCOLOR)
 
     # static results
-    texts["static_results"] = canvas.create_text(765, 180, text = "Static Results", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
-    texts["avg_force"] = canvas.create_text(765, 230, text = "Avg. Force (N):", font = ("Courier", 14), fill = FONTCOLOR)
-    texts["max_force"] = canvas.create_text(1050, 230, text = "Max Force (N):", font = ("Courier", 14), fill = FONTCOLOR)
-    texts["static_log_file"] = canvas.create_text(772, 280, text = "Log File Name:", font = ("Courier", 14), fill = FONTCOLOR)
-    rects["static_path_rect"] = canvas.create_rectangle(861, 266, 1100, 295, fill = BUTTONCOLOR, width = 1)
-    texts["static_folder_symbol"] = canvas.create_text(1085, 280, text = "📁", font = ("Courier", 16), fill = FONTCOLOR)
-    texts["static_path"] = canvas.create_text(868, 272, text = ".../static_results.txt", font = ("Courier", 11), fill = FONTCOLOR, anchor = "nw")
+    texts["static_results"] = canvas.create_text(800, 165, text = "Static Results", font = ("Courier", 16, "underline"), fill = FONTCOLOR, anchor = "nw")
+    texts["avg_force"] = canvas.create_text(883, 230, text = "Avg. Force (N):", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["max_force"] = canvas.create_text(1130, 230, text = "Max Force (N):", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["static_log_file"] = canvas.create_text(877, 280, text = "Log File Name:", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["static_folder_extension"] = canvas.create_text(1215, 281, text = ".csv", font = ("Courier", 11), fill = FONTCOLOR)
     labels["avg_force"] = tk.Label(root, textvariable = avg_force, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["avg_force"].place(x = 860, y = 218)
+    labels["avg_force"].place(x = 976, y = 218)
     labels["max_force"] = tk.Label(root, textvariable = max_force, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["max_force"].place(x = 1135, y = 218)
+    labels["max_force"].place(x = 1215, y = 218)
 
     # dynamic assessment
     texts["dynamic_assessment"] = canvas.create_text(136, 370, text = "Dynamic Assessment", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
@@ -461,43 +455,42 @@ def canvasElements(): # define and place all canvas elements
     texts["pull_speed"] = canvas.create_text(598, 640, text = "Pull Speed (RPM):", font = ("Courier", 14), fill = FONTCOLOR)
 
     # dynamic results
-    texts["dynamic_results"] = canvas.create_text(910, 370, text = "Dynamic Results", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
-    texts["dynamic_log_file"] = canvas.create_text(890, 413, text = "Log File Name:", font = ("Courier", 14), fill = FONTCOLOR)
-    rects["dynamic_path_rect"] = canvas.create_rectangle(986, 398, 1230, 427, fill = BUTTONCOLOR, width = 1)
-    texts["dynamic_folder_symbol"] = canvas.create_text(1216, 412, text = "📁", font = ("Courier", 16), fill = FONTCOLOR)
-    texts["dynamic_path"] = canvas.create_text(991, 404, text = ".../dynamic_results.txt", font = ("Courier", 11), fill = FONTCOLOR, anchor = "nw")
-    texts["ang_disp"] = canvas.create_text(929, 520, text = "Max Ang. Disp. (deg):", font = ("Courier", 14), fill = FONTCOLOR)
-    texts["max_vel"] = canvas.create_text(951, 560, text = "Max Vel. (m/sec):", font = ("Courier", 14), fill = FONTCOLOR)
-    texts["max_accel"] = canvas.create_text(929, 600, text = "Max Accel. (m/sec^2):", font = ("Courier", 14), fill = FONTCOLOR)
-    texts['x'] = canvas.create_text(1090, 490, text = "X", font = ("Courier", 14,), fill = FONTCOLOR)
-    texts['y'] = canvas.create_text(1164, 490, text = "Y", font = ("Courier", 14), fill = FONTCOLOR)
-    texts['z'] = canvas.create_text(1240, 490, text = "Z", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["dynamic_results"] = canvas.create_text(896, 370, text = "Dynamic Results", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
+    texts["dynamic_log_file"] = canvas.create_text(877, 428, text = "Log File Name:", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["dynamic_folder_extension"] = canvas.create_text(1215, 428, text = ".csv", font = ("Courier", 11), fill = FONTCOLOR)
+    texts["ang_disp"] = canvas.create_text(916, 520, text = "Max Ang. Disp. (deg):", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["max_vel"] = canvas.create_text(938, 560, text = "Max Vel. (m/sec):", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["max_accel"] = canvas.create_text(916, 600, text = "Max Accel. (m/sec^2):", font = ("Courier", 14), fill = FONTCOLOR)
+    texts['x'] = canvas.create_text(1077, 490, text = "X", font = ("Courier", 14,), fill = FONTCOLOR)
+    texts['y'] = canvas.create_text(1151, 490, text = "Y", font = ("Courier", 14), fill = FONTCOLOR)
+    texts['z'] = canvas.create_text(1227, 490, text = "Z", font = ("Courier", 14), fill = FONTCOLOR)
 
     labels["ang_disp_x"] = tk.Label(root, textvariable = ang_disp_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["ang_disp_x"].place(x = 1060, y = 507)
+    labels["ang_disp_x"].place(x = 1045, y = 507)
     labels["ang_disp_y"] = tk.Label(root, textvariable = ang_disp_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["ang_disp_y"].place(x = 1060, y = 547)
+    labels["ang_disp_y"].place(x = 1045, y = 547)
     labels["ang_disp_z"] = tk.Label(root, textvariable = ang_disp_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["ang_disp_z"].place(x = 1060, y = 587)
+    labels["ang_disp_z"].place(x = 1045, y = 587)
     labels["max_vel_x"] = tk.Label(root, textvariable = max_vel_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["max_vel_x"].place(x = 1135, y = 507)
+    labels["max_vel_x"].place(x = 1120, y = 507)
     labels["max_vel_y"] = tk.Label(root, textvariable = max_vel_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["max_vel_y"].place(x = 1135, y = 547)
+    labels["max_vel_y"].place(x = 1120, y = 547)
     labels["max_vel_z"] = tk.Label(root, textvariable = max_vel_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["max_vel_z"].place(x = 1135, y = 587)
+    labels["max_vel_z"].place(x = 1120, y = 587)
     labels["max_accel_x"] = tk.Label(root, textvariable = max_accel_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["max_accel_x"].place(x = 1210, y = 507)
+    labels["max_accel_x"].place(x = 1195, y = 507)
     labels["max_accel_y"] = tk.Label(root, textvariable = max_accel_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["max_accel_y"].place(x = 1210, y = 547)
+    labels["max_accel_y"].place(x = 1195, y = 547)
     labels["max_accel_z"] = tk.Label(root, textvariable = max_accel_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["max_accel_z"].place(x = 1210, y = 587)
+    labels["max_accel_z"].place(x = 1195, y = 587)
+    
  
 def placeButtons(): # place all buttons
     buttons["reloadButton"].place(x = 260, y = 3)
     buttons["standaloneIMUbutton"].place(x = 325, y = 70)
     buttons["standaloneMotorButton"].place(x = 475, y = 70)
     buttons["standalonelcButton"].place(x = 625, y = 70)
-    buttons["fileLocationButton"].place(x = 1100, y = 70)
+    buttons["fileLocationButton"].place(x = 1150, y = 75)
     buttons["exitButton"].place(x = 1225, y = 8)
     buttons["pulltime_entry"].place(x = 215, y = 220)
     buttons["static_extension"].place(x = 310, y = 205)
@@ -505,6 +498,7 @@ def placeButtons(): # place all buttons
     buttons["static_flexion"].place(x = 300, y = 235)
     buttons["static_right_lateral"].place(x = 460, y = 235)
     buttons["start_static"].place(x = 30, y = 280)
+    buttons["static_log_entry"].place(x = 966, y = 270)
     buttons["darkButton"].place(x = 1225, y = 675)
     buttons["anticipated"].place(x = 20, y = 400) 
     buttons["unanticipated"].place(x = 190, y = 400)
@@ -520,6 +514,7 @@ def placeButtons(): # place all buttons
     buttons["pull_rot_entry"].place(x = 710, y = 587)
     buttons["pull_speed_entry"].place(x = 710, y = 627)
     buttons["start_dynamic"].place(x = 30, y = 660)
+    buttons["dynamic_log_entry"].place(x = 966, y = 417)
 
 # =============button creations TODO: make a function for this=============
 buttons["reloadButton"] = tk.Button(
@@ -595,7 +590,7 @@ buttons["fileLocationButton"] = tk.Button(
     root,
     text = "Choose Folder",
     command = chooseFolder,
-    width = 14,
+    width = 13,
     height = 1,
     relief = "solid",
     state = "normal",
@@ -604,7 +599,7 @@ buttons["fileLocationButton"] = tk.Button(
     activebackground = WINDOWCOLOR,
     activeforeground = "white",
     fg = FONTCOLOR,
-    font = ("Courier", 14),
+    font = ("Courier", 11),
     cursor = "hand2"
 )
 
@@ -713,6 +708,20 @@ buttons["start_static"] = tk.Button(
     font = ("Courier", 14),
     cursor = "hand2"
 )
+
+# static log file entry
+static_log_location = tk.StringVar()
+buttons["static_log_entry"] = tk.Entry(
+        master = root,        
+        textvariable = static_log_location,
+        width = 25,   
+        font = ("Courier", 11),
+        bg = BUTTONCOLOR,
+        fg = FONTCOLOR,
+        insertbackground = FONTCOLOR, 
+        relief = "solid",
+        bd = 1
+    )
 
 # dynamic anticipation radio buttons
 anticipation = tk.StringVar(value = "anticipated") 
@@ -907,6 +916,20 @@ buttons["start_dynamic"] = tk.Button(
     cursor = "hand2"
 )
 
+# dynamic log file entry
+dynamic_log_location = tk.StringVar()
+buttons["dynamic_log_entry"] = tk.Entry(
+        master = root,        
+        textvariable = dynamic_log_location,
+        width = 25,   
+        font = ("Courier", 11),
+        bg = BUTTONCOLOR,
+        fg = FONTCOLOR,
+        insertbackground = FONTCOLOR, 
+        relief = "solid",
+        bd = 1
+    )
+
 buttons["darkButton"] = tk.Button(
     root,
     text = "⏾",
@@ -924,7 +947,6 @@ buttons["darkButton"] = tk.Button(
     cursor = "hand2"
 
 )
-
 
 # variables for values after static & dynamic tests, FIXME: unsure if they're placed in the right spot in the program... diff scope?
 avg_force = tk.StringVar(value = '-') 
