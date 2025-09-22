@@ -5,10 +5,12 @@ from imu_win import open_imu_window
 from motor_win import open_motor_window
 from LC_win import open_lc_window
 
+FONTCOLOR = "#E0E0E0"
+BUTTONCOLOR = "#444444"
+WINDOWCOLOR = "#121212"
 
-#class NSATApp:
-    #def __init__(self, root):
-        #self.root = root
+root = tk.Tk() # create root window
+canvas = tk.Canvas(root, width = 1280, height = 720, bg = WINDOWCOLOR, highlightthickness = 0) # create canvas
 
 # global variables
 imuWindow = None
@@ -22,17 +24,36 @@ staticCanvas = None
 dynamicWindow = None
 dynamicCanvas = None
 
-# FIXME: idk if this is right (initialization of entry variables)
-pull_accel_val = None
-pull_decel_val = None
-pull_rot_val = None
-pull_speed_val = None
+# radio button string vars
+static_motor_direction = tk.StringVar(value = "extension") 
+anticipation = tk.StringVar(value = "anticipated") 
+dynamic_motor_direction = tk.StringVar(value = "extension")
+
+# entry string vars
+pulltime_val = tk.StringVar()
+time_window_val = tk.StringVar()
+log_time_pre_val = tk.StringVar()
+log_time_post_val = tk.StringVar()
+pull_accel_val = tk.StringVar()
+pull_decel_val = tk.StringVar()
+pull_rot_val = tk.StringVar()
+pull_speed_val = tk.StringVar()
+
+# label string vars
+avg_force = tk.StringVar(value = '-') 
+max_force = tk.StringVar(value = '-')
+
+ang_disp_x = tk.StringVar(value = '-')
+ang_disp_y = tk.StringVar(value = '-')
+ang_disp_z = tk.StringVar(value = '-')
+max_vel_x = tk.StringVar(value = '-')
+max_vel_y = tk.StringVar(value = '-')
+max_vel_z = tk.StringVar(value = '-')
+max_accel_x = tk.StringVar(value = '-')
+max_accel_y = tk.StringVar(value = '-')
+max_accel_z = tk.StringVar(value = '-')
 
 dark = True # start program in dark mode
-
-FONTCOLOR = "#E0E0E0"
-BUTTONCOLOR = "#444444"
-WINDOWCOLOR = "#121212"
 
 # initialize status rectangle colors as grey, will be changed immediately on startup based on connection status
 imu_color = BUTTONCOLOR 
@@ -54,10 +75,6 @@ motorLabels = {}
 lcButtons = {}
 lcLabels = {}
 lcTexts = {}
-
-
-root = tk.Tk() # create root window
-canvas = tk.Canvas(root, width = 1280, height = 720, bg = WINDOWCOLOR, highlightthickness = 0) # create canvas
 
 #=============function definitions=============
 def disable_close(): # disable closing with [x]
@@ -85,14 +102,61 @@ def create_window(title, width, height):
     window.protocol("WM_DELETE_WINDOW", disable_close)
 
     return window, canvas
-   
-def create_button(text, command, width, height, font = ("Courier, 14")):
 
-    return tk.Button(self.root, text=text, command=command,
-        width=width, height=height, font=font,
-        bg=self.BUTTONCOLOR, fg=self.FONTCOLOR,
-        activebackground=self.WINDOWCOLOR,
-        activeforeground="white")
+def create_button(parent, text, command, width = 10, height = 1, relief = "solid", 
+                  bd = 1, bg = BUTTONCOLOR, activebackground = WINDOWCOLOR, 
+                  activeforeground = FONTCOLOR, font = ("Courier", 14)):
+    
+    return tk.Button(
+        parent,
+        text = text,
+        command = command,
+        width = width,
+        height = height,
+        relief = relief,
+        bd = bd,
+        bg = bg,
+        fg = FONTCOLOR,
+        activebackground = activebackground,
+        activeforeground =  activeforeground,
+        font = font,
+        cursor = "hand2"
+    )
+
+def create_radiobutton(parent, text, variable, value, width=10,
+                       bg=WINDOWCOLOR, activebackground=WINDOWCOLOR,
+                       activeforeground="white", fg=FONTCOLOR,
+                       selectcolor=BUTTONCOLOR, font=("Courier", 14)):
+    """
+    Creates a styled Tkinter Radiobutton.
+    """
+    return tk.Radiobutton(
+        parent,
+        text=text,
+        variable=variable,
+        value=value,
+        width=width,
+        bg=bg,
+        activebackground=activebackground,
+        activeforeground=activeforeground,
+        fg=fg,
+        selectcolor=selectcolor,
+        font=font,
+        cursor="hand2"
+    )
+
+def create_entry(parent, textvar, width):
+    return tk.Entry(
+            master = parent, 
+            textvariable = textvar, 
+            width = width, 
+            font = ("Courier", 14), 
+            bg = BUTTONCOLOR, 
+            fg = FONTCOLOR, 
+            insertbackground = FONTCOLOR, 
+            relief = "solid", 
+            bd = 1
+        )
 
 def anticipated():
     global dynamicWindow
@@ -157,7 +221,6 @@ def unanticipated():
             dynamicWindow, dynamicCanvas = create_window("Dynamic Unanticipated", 500, 500)
 
             rand_pulltime = random.randint(0, time_window)
-            print(rand_pulltime)
             texts["dynamic_timer"] = dynamicCanvas.create_text(250, 250, font = ("Courier", 50, "bold"), fill = FONTCOLOR)
             texts["recording"] = dynamicCanvas.create_text(260, 350, text = "Recording...", font = ("Courier", 20, "bold"), fill = FONTCOLOR)
                 
@@ -187,7 +250,6 @@ def darkLight(): # change visual mode
 
     dark = not dark # toggle boolean 
     
-    # switch color's values, switch dark/light button's text
     if dark:  
         FONTCOLOR = "#E0E0E0"
         BUTTONCOLOR = "#444444"
@@ -199,7 +261,7 @@ def darkLight(): # change visual mode
         WINDOWCOLOR = "#eeeeee"
         buttons["darkButton"].config(text = "☀")
 
-    # update canvases and windows with new color
+    # update window and canvas
     root.configure(bg = WINDOWCOLOR)
     canvas.configure(bg = WINDOWCOLOR)
 
@@ -260,28 +322,32 @@ def darkLight(): # change visual mode
         except:
             pass
 
-    # cycle through every other element, change attributes
+    # update rectangles
     for name, rect in rects.items(): 
         if name in ("imu", "motor", "lc"):
             continue # skip the status rectangles
         canvas.itemconfig(rect, fill = BUTTONCOLOR)
 
+    # update texts
     for text in texts.values():
         canvas.itemconfig(text, fill = FONTCOLOR)
 
+    # update buttons, reloadbutton, entries, and radiobuttons need separate updates
     for name, button in buttons.items():
         if name == "reloadButton": # reload button should have transparent background
             button.config(bg = WINDOWCOLOR, activebackground = WINDOWCOLOR, fg = FONTCOLOR, activeforeground = BUTTONCOLOR)
-        elif name in ("pulltime_entry", "time_window_entry", "log_time_pre_entry", "log_time_post_entry", "pull_accel_entry", "pull_decel_entry", "pull_rot_entry", "pull_speed_entry"):
+        elif name.endswith("_entry"):
             button.config(bg = BUTTONCOLOR, fg = FONTCOLOR, insertbackground = FONTCOLOR)
-        elif name in ("static_extension", "static_left_lateral", "static_flexion", "static_right_lateral", "anticipated", "unanticipated", "dynamic_extension", "dynamic_left_lateral", "dynamic_flexion", "dynamic_right_lateral"):
+        elif name.startswith("static_") or name.startswith("dynamic_") or name in ("anticipated", "unanticipated"):
             button.config(bg = WINDOWCOLOR, activebackground = WINDOWCOLOR, activeforeground = FONTCOLOR, fg = FONTCOLOR, selectcolor = BUTTONCOLOR)
         else:
             button.config(bg = BUTTONCOLOR, fg = FONTCOLOR, activebackground = WINDOWCOLOR, activeforeground = FONTCOLOR)
-
+    
+    #u pdate labels
     for label in labels.values():
             label.config(fg = FONTCOLOR, bg = BUTTONCOLOR)
 
+    # update lines (make line thinner in light mode)
     for line in lines.values():
         if not dark:
             canvas.itemconfig(line, width = 1)
@@ -339,13 +405,13 @@ def chooseFolder(): # choose root folder
         return None
     
     # truncate path if too long
-    if len(folder_path) <= 22: 
+    if len(folder_path) <= 30: 
         truncated_path = folder_path  
     else:
-        truncated_path = folder_path[:22] + "..." 
+        truncated_path = folder_path[:30] + "..." 
 
     if "path" not in texts: # if first time
-        texts["path"] = canvas.create_text(830, 81, text = truncated_path, font = ("Courier", 11), fill = FONTCOLOR, anchor = "nw") # print truncated path
+        texts["path"] = canvas.create_text(790, 81, text = truncated_path, font = ("Courier", 11), fill = FONTCOLOR, anchor = "nw") # print truncated path
     else:
         canvas.itemconfig(texts["path"], text = truncated_path) # replace old text with new 
 
@@ -362,34 +428,33 @@ def startStatic(): #TODO: implement data output
         messagebox.showinfo("Error", "Enter an integer value into \"Pull Time\".")
         return
 
-    if pulltime_val.get(): # if user has entered time
-        if ((staticWindow is None or not staticWindow.winfo_exists()) and (dynamicWindow is None or not dynamicWindow.winfo_exists())): # if staticWindow and dynamicWindow isn't open 
-            staticWindow, staticCanvas = create_window("Static Test", 500, 500)
+    if ((staticWindow is None or not staticWindow.winfo_exists()) and (dynamicWindow is None or not dynamicWindow.winfo_exists())): # if staticWindow and dynamicWindow isn't open 
+        staticWindow, staticCanvas = create_window("Static Test", 500, 500)
 
-            # create text
-            texts["static_header"] = staticCanvas.create_text(250, 70, text = "Starting in:", font = ("Courier", 30, "bold underline"), fill = FONTCOLOR)
-            texts["static_timer"] = staticCanvas.create_text(250, 250, font = ("Courier", 50, "bold"), fill = FONTCOLOR)
+        # create text
+        texts["static_header"] = staticCanvas.create_text(250, 70, text = "Starting in:", font = ("Courier", 30, "bold underline"), fill = FONTCOLOR)
+        texts["static_timer"] = staticCanvas.create_text(250, 250, font = ("Courier", 50, "bold"), fill = FONTCOLOR)
 
-            def countdown(): # countdown from 5, display amt. of time left on screen
-                nonlocal time_left_down
-                if time_left_down > 0 and staticWindow.winfo_exists(): 
-                    staticCanvas.itemconfig(texts["static_timer"], text = str(time_left_down))
-                    time_left_down -= 1
-                    staticWindow.after(1000, countdown)
-                else: # after countdown
-                    staticCanvas.itemconfig(texts["static_header"], text = "Start Pull:")
-                    texts["recording"] = staticCanvas.create_text(257, 330, text = "Recording...", font = ("Courier", 20, "bold"), fill = FONTCOLOR)
-                    countup()
+        def countdown(): # countdown from 5, display amt. of time left on screen
+            nonlocal time_left_down
+            if time_left_down > 0 and staticWindow.winfo_exists(): 
+                staticCanvas.itemconfig(texts["static_timer"], text = str(time_left_down))
+                time_left_down -= 1
+                staticWindow.after(1000, countdown)
+            else: # after countdown
+                staticCanvas.itemconfig(texts["static_header"], text = "Start Pull:")
+                texts["recording"] = staticCanvas.create_text(257, 330, text = "Recording...", font = ("Courier", 20, "bold"), fill = FONTCOLOR)
+                countup()
 
-            def countup(): # count up to pulltime, close window
-                    nonlocal time_left_up
-                    if time_left_up <= pulltime:
-                        staticCanvas.itemconfig(texts["static_timer"], text = time_left_up)
-                        time_left_up += 1
-                        staticWindow.after(1000, countup)
-                    else: # after count up
-                        staticWindow.destroy()
-            countdown()
+        def countup(): # count up to pulltime, close window
+                nonlocal time_left_up
+                if time_left_up <= pulltime:
+                    staticCanvas.itemconfig(texts["static_timer"], text = time_left_up)
+                    time_left_up += 1
+                    staticWindow.after(1000, countup)
+                else: # after count up
+                    staticWindow.destroy()
+        countdown()
 
 def startDynamic(): #TODO: implement data output
     
@@ -397,15 +462,6 @@ def startDynamic(): #TODO: implement data output
         anticipated()
     if anticipation.get() == "unanticipated":
         unanticipated()
-
-def setupWindow(): # window setup information
-    root.title("NSAT Prototype 3a")
-    root.geometry("1280x720")
-    root.resizable(width = False, height = False)
-    root.configure(bg = WINDOWCOLOR)
-    root.protocol("WM_DELETE_WINDOW", disable_close)
-
-    canvas.pack() # pack canvas onto window
 
 def canvasElements(): # define and place all canvas elements
     # lines
@@ -416,6 +472,7 @@ def canvasElements(): # define and place all canvas elements
     lines[5] = canvas.create_line(10, 335, 1270, 335, fill = "black", width = 2)
     lines[6] = canvas.create_line(381, 400, 381, 465, fill = "black", width = 2)
     lines[7] = canvas.create_line(785, 345, 785, 710, fill = "black", width = 2)
+
     # connection info
     texts["connection_info"] = canvas.create_text(125, 24, text = "Connection Info", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
     texts["imu_status"] = canvas.create_text(129, 60, text = "IMU Status", font = ("Courier", 14), fill = FONTCOLOR) 
@@ -430,8 +487,8 @@ def canvasElements(): # define and place all canvas elements
 
     # choose directory
     texts["choose_directory"] = canvas.create_text(1010, 24, text = "Choose Directory", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
-    rects["path_rect"] = canvas.create_rectangle(820, 74, 1090, 103, fill = BUTTONCOLOR, width = 1)
-    texts["folder_symbol"] = canvas.create_text(1076, 88, text = "📁", font = ("Courier", 16), fill = FONTCOLOR)
+    rects["path_rect"] = canvas.create_rectangle(780, 74, 1120, 103, fill = BUTTONCOLOR, width = 1)
+    texts["folder_symbol"] = canvas.create_text(1106, 88, text = "📁", font = ("Courier", 16), fill = FONTCOLOR)
 
     # static assessment
     texts["static_assessment"] = canvas.create_text(135, 180, text = "Static Assessment", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
@@ -445,9 +502,9 @@ def canvasElements(): # define and place all canvas elements
     rects["static_path_rect"] = canvas.create_rectangle(861, 266, 1100, 295, fill = BUTTONCOLOR, width = 1)
     texts["static_folder_symbol"] = canvas.create_text(1085, 280, text = "📁", font = ("Courier", 16), fill = FONTCOLOR)
     texts["static_path"] = canvas.create_text(868, 272, text = ".../static_results.txt", font = ("Courier", 11), fill = FONTCOLOR, anchor = "nw")
-    labels["avg_force"] = tk.Label(root, textvariable = avg_force, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
-    labels["avg_force"].place(x = 860, y = 218)
-    labels["max_force"] = tk.Label(root, textvariable = max_force, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["avg_force"] = tk.Label(root, textvar = avg_force, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["avg_force"].place(x = 861, y = 218)
+    labels["max_force"] = tk.Label(root, textvar = max_force, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["max_force"].place(x = 1135, y = 218)
 
     # dynamic assessment
@@ -455,12 +512,12 @@ def canvasElements(): # define and place all canvas elements
     texts["time_window"] = canvas.create_text(187, 520, text = "Time Window / Countdown (sec):", font = ("Courier", 14), fill = FONTCOLOR)
     texts["log_time_pre"] = canvas.create_text(247, 560, text = "Log Time Pre (sec):", font = ("Courier", 14), fill = FONTCOLOR)
     texts["log_time_post"] = canvas.create_text(242, 600, text = "Log Time Post (sec):", font = ("Courier", 14), fill = FONTCOLOR)
-    texts["pull_accel"] = canvas.create_text(570, 520, text = "Pull Accel. (m/sec^2):", font = ("Courier", 14), fill = FONTCOLOR)
-    texts["pull_decel"] = canvas.create_text(570, 560, text = "Pull Decel. (m/sec^2):", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["pull_accel"] = canvas.create_text(571, 520, text = "Pull Accel. (m/sec^2):", font = ("Courier", 14), fill = FONTCOLOR)
+    texts["pull_decel"] = canvas.create_text(571, 560, text = "Pull Decel. (m/sec^2):", font = ("Courier", 14), fill = FONTCOLOR)
     texts["pull_rot"] = canvas.create_text(604, 600, text = "Pull Rot. (deg):", font = ("Courier", 14), fill = FONTCOLOR)
     texts["pull_speed"] = canvas.create_text(598, 640, text = "Pull Speed (RPM):", font = ("Courier", 14), fill = FONTCOLOR)
 
-    # dynamic results
+    # dynamic results 
     texts["dynamic_results"] = canvas.create_text(910, 370, text = "Dynamic Results", font = ("Courier", 16, "underline"), fill = FONTCOLOR)
     texts["dynamic_log_file"] = canvas.create_text(890, 413, text = "Log File Name:", font = ("Courier", 14), fill = FONTCOLOR)
     rects["dynamic_path_rect"] = canvas.create_rectangle(986, 398, 1230, 427, fill = BUTTONCOLOR, width = 1)
@@ -472,24 +529,23 @@ def canvasElements(): # define and place all canvas elements
     texts['x'] = canvas.create_text(1090, 490, text = "X", font = ("Courier", 14,), fill = FONTCOLOR)
     texts['y'] = canvas.create_text(1164, 490, text = "Y", font = ("Courier", 14), fill = FONTCOLOR)
     texts['z'] = canvas.create_text(1240, 490, text = "Z", font = ("Courier", 14), fill = FONTCOLOR)
-
-    labels["ang_disp_x"] = tk.Label(root, textvariable = ang_disp_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["ang_disp_x"] = tk.Label(root, textvar = ang_disp_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["ang_disp_x"].place(x = 1060, y = 507)
-    labels["ang_disp_y"] = tk.Label(root, textvariable = ang_disp_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["ang_disp_y"] = tk.Label(root, textvar = ang_disp_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["ang_disp_y"].place(x = 1060, y = 547)
-    labels["ang_disp_z"] = tk.Label(root, textvariable = ang_disp_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["ang_disp_z"] = tk.Label(root, textvar = ang_disp_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["ang_disp_z"].place(x = 1060, y = 587)
-    labels["max_vel_x"] = tk.Label(root, textvariable = max_vel_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["max_vel_x"] = tk.Label(root, textvar = max_vel_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["max_vel_x"].place(x = 1135, y = 507)
-    labels["max_vel_y"] = tk.Label(root, textvariable = max_vel_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["max_vel_y"] = tk.Label(root, textvar = max_vel_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["max_vel_y"].place(x = 1135, y = 547)
-    labels["max_vel_z"] = tk.Label(root, textvariable = max_vel_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["max_vel_z"] = tk.Label(root, textvar = max_vel_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["max_vel_z"].place(x = 1135, y = 587)
-    labels["max_accel_x"] = tk.Label(root, textvariable = max_accel_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["max_accel_x"] = tk.Label(root, textvar = max_accel_x, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["max_accel_x"].place(x = 1210, y = 507)
-    labels["max_accel_y"] = tk.Label(root, textvariable = max_accel_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["max_accel_y"] = tk.Label(root, textvar = max_accel_y, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["max_accel_y"].place(x = 1210, y = 547)
-    labels["max_accel_z"] = tk.Label(root, textvariable = max_accel_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
+    labels["max_accel_z"] = tk.Label(root, textvar = max_accel_z, font = ("Courier", 14), fg = FONTCOLOR, bg = BUTTONCOLOR, bd = 1, relief = "solid", width = 5, height = 1)
     labels["max_accel_z"].place(x = 1210, y = 587)
  
 def placeButtons(): # place all buttons
@@ -497,7 +553,7 @@ def placeButtons(): # place all buttons
     buttons["standaloneIMUbutton"].place(x = 325, y = 70)
     buttons["standaloneMotorButton"].place(x = 475, y = 70)
     buttons["standalonelcButton"].place(x = 625, y = 70)
-    buttons["fileLocationButton"].place(x = 1100, y = 70)
+    buttons["fileLocationButton"].place(x = 1133, y = 74)
     buttons["exitButton"].place(x = 1225, y = 8)
     buttons["pulltime_entry"].place(x = 215, y = 220)
     buttons["static_extension"].place(x = 310, y = 205)
@@ -521,424 +577,63 @@ def placeButtons(): # place all buttons
     buttons["pull_speed_entry"].place(x = 710, y = 627)
     buttons["start_dynamic"].place(x = 30, y = 660)
 
-# =============button creations TODO: make a function for this=============
-buttons["reloadButton"] = tk.Button(
-    root,
-    text = "↻",
-    command=reloadConnections,
-    width = 1,
-    height = 1,
-    relief = "flat",
-    bd = 0,
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    fg = FONTCOLOR,
-    font = ("Times New Roman", 20),
-    cursor = "hand2",
-    highlightthickness=0
-    
-)
+def setupWindow(): # window setup information
+    root.title("NSAT Prototype 3a")
+    root.geometry("1280x720")
+    root.resizable(width = False, height = False)
+    root.configure(bg = WINDOWCOLOR)
+    root.protocol("WM_DELETE_WINDOW", disable_close)
 
-buttons["standaloneIMUbutton"] = tk.Button(
-    root,
-    text = "IMU",
-    command = standaloneIMU,
-    width = 10,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 14),
-    cursor = "hand2",
-)
+    canvas.pack() # pack canvas onto window
 
-buttons["standaloneMotorButton"] = tk.Button(
-    root,
-    text = "Motor",
-    command = standaloneMotor,
-    width = 10,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 14),
-    cursor = "hand2"
-    
-)
+'''Here, the buttons are stored in dictionaries that contain their name and configurations. Afterwards, they are created by iterating 
+through a for loop that, by using the type's respective function, unpacks the configs and creates the button. It also adds the created 
+button to a separate dictionary (buttons) to allow for reconfig for the visual-switch.'''
 
-buttons["standalonelcButton"] = tk.Button(
-    root,
-    text = "Load Cell",
-    command = standalonelc,
-    width = 10,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 14),
-    cursor = "hand2"
-)
+button_configs = {
+    "reloadButton": {"text": "↻", "command": reloadConnections, "width": 1, "height": 1, "relief": "flat", "bd": 0, "bg": WINDOWCOLOR, "activebackground": WINDOWCOLOR, "activeforeground": BUTTONCOLOR, "font": ("Times New Roman", 20)},
+    "standaloneIMUbutton": {"text": "IMU", "command": standaloneIMU},
+    "standaloneMotorButton": {"text": "Motor", "command": standaloneMotor},
+    "standalonelcButton": {"text": "Load Cell", "command": standalonelc},
+    "fileLocationButton": {"text": "Choose Folder", "command": chooseFolder, "width": 13, "font": ("Courier", 12)},
+    "exitButton": {"text": "Exit", "command": exitFunction, "width": 5, "font": ("Courier", 10)},
+    "start_static": {"text": "Start Static", "command": startStatic, "width": 14},
+    "start_dynamic": {"text": "Start Dynamic", "command": startDynamic, "width": 14},
+    "darkButton": {"text": "⏾", "command": darkLight, "width": 3, "font": ("Courier", 16)},
+}
 
-buttons["fileLocationButton"] = tk.Button(
-    root,
-    text = "Choose Folder",
-    command = chooseFolder,
-    width = 14,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 14),
-    cursor = "hand2"
-)
+radio_configs = {
+    "static_extension": {"text": "Extension", "variable": static_motor_direction, "value": "extension", "width": 8},
+    "static_left_lateral": {"text": "Left Lateral", "variable": static_motor_direction, "value": "left_lateral", "width": 11},
+    "static_flexion": {"text": "Flexion", "variable": static_motor_direction, "value": "flexion", "width": 8},
+    "static_right_lateral": {"text": "Right Lateral", "variable": static_motor_direction, "value": "right_lateral", "width": 12},
+    "dynamic_extension": {"text": "Extension", "variable": dynamic_motor_direction, "value": "extension", "width": 8},
+    "dynamic_left_lateral": {"text": "Left Lateral", "variable": dynamic_motor_direction, "value": "left_lateral", "width": 11},
+    "dynamic_flexion": {"text": "Flexion", "variable": dynamic_motor_direction, "value": "flexion", "width": 8},
+    "dynamic_right_lateral": {"text": "Right Lateral", "variable": dynamic_motor_direction, "value": "right_lateral", "width": 12},
+    "anticipated": {"text": "Anticipated", "variable": anticipation, "value": "anticipated", "width": 10},
+    "unanticipated": {"text": "Unanticipated", "variable": anticipation, "value": "unanticipated", "width": 13},
+}
 
-buttons["exitButton"] = tk.Button(
-    root,
-    text = "Exit",
-    command = exitFunction,
-    width = 5,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 10),
-    cursor = "hand2"
-)
+entry_configs = {
+    "pulltime_entry": {"textvar": pulltime_val, "width": 4},
+    "time_window_entry": {"textvar": time_window_val, "width": 4},
+    "log_time_pre_entry": {"textvar": log_time_pre_val, "width": 4},
+    "log_time_post_entry": {"textvar": log_time_post_val, "width": 4},
+    "pull_accel_entry": {"textvar": pull_accel_val, "width": 4},
+    "pull_decel_entry": {"textvar": pull_decel_val, "width": 4},
+    "pull_rot_entry": {"textvar": pull_rot_val, "width": 4},
+    "pull_speed_entry": {"textvar": pull_speed_val, "width": 4},
+}
 
-# static entry
-pulltime_val = tk.StringVar() 
-buttons["pulltime_entry"] = tk.Entry(
-        master = root,       
-        textvariable = pulltime_val,
-        width = 4,   
-        font = ("Courier", 14),
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR, 
-        relief = "solid",
-        bd = 1
-    )
+for name, cfg in entry_configs.items():
+    buttons[name] = create_entry(root, **cfg)
 
-# static motor direction radio buttons
-static_motor_direction = tk.StringVar(value = "extension") 
-buttons["static_extension"] = tk.Radiobutton(
-    root,
-    text = "Extension",
-    variable = static_motor_direction,
-    value = "extension",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 8
-)
+for name, cfg in button_configs.items():
+    buttons[name] = create_button(root, **cfg)
 
-buttons["static_left_lateral"] = tk.Radiobutton(
-    root,
-    text = "Left Lateral",
-    variable = static_motor_direction,
-    value = "left_lateral",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 11
-)
-
-buttons["static_flexion"] = tk.Radiobutton(
-    root,
-    text = "Flexion",
-    variable = static_motor_direction,
-    value = "flexion",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 8
-)
-
-buttons["static_right_lateral"] = tk.Radiobutton(
-    root,
-    text = "Right Lateral",
-    variable = static_motor_direction,
-    value = "right_lateral",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 12
-)
-
-buttons["start_static"] = tk.Button(
-    root,
-    text = "Start Static",
-    command = startStatic,
-    width = 14,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 14),
-    cursor = "hand2"
-)
-
-# dynamic anticipation radio buttons
-anticipation = tk.StringVar(value = "anticipated") 
-buttons["anticipated"] = tk.Radiobutton(
-    root,
-    text = "Anticipated",
-    variable = anticipation,
-    value = "anticipated",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 10
-)
-
-buttons["unanticipated"] = tk.Radiobutton(
-    root,
-    text = "Unanticipated",
-    variable = anticipation,
-    value = "unanticipated",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 13
-)
-
-# dynamic motor direction radio buttons
-dynamic_motor_direction = tk.StringVar(value = "extension")
-buttons["dynamic_extension"] = tk.Radiobutton(
-    root,
-    text = "Extension",
-    variable = dynamic_motor_direction,
-    value = "extension",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 8
-)
-
-buttons["dynamic_left_lateral"] = tk.Radiobutton(
-    root,
-    text = "Left Lateral",
-    variable = dynamic_motor_direction,
-    value = "left_lateral",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 11
-)
-
-buttons["dynamic_flexion"] = tk.Radiobutton(
-    root,
-    text = "Flexion",
-    variable = dynamic_motor_direction,
-    value = "flexion",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 8
-)
-
-buttons["dynamic_right_lateral"] = tk.Radiobutton(
-    root,
-    text = "Right Lateral",
-    variable = dynamic_motor_direction,
-    value = "right_lateral",
-    bg = WINDOWCOLOR,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    selectcolor = BUTTONCOLOR,
-    font = ("Courier", 14),
-    width = 12
-)
-
-# dynamic entries
-time_window_val = tk.StringVar() 
-buttons["time_window_entry"] = tk.Entry(
-        master = root,     
-        textvariable = time_window_val, 
-        width = 4,   
-        font = ("Courier", 14),
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR,  
-        relief = "solid",
-        bd = 1
-    )
-
-log_time_pre_val = tk.StringVar() 
-buttons["log_time_pre_entry"] = tk.Entry(
-        master = root,        
-        textvariable = log_time_pre_val,
-        width = 4,   
-        font = ("Courier", 14),
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR, 
-        relief = "solid",
-        bd = 1
-    )
-
-log_time_post_val = tk.StringVar() 
-buttons["log_time_post_entry"] = tk.Entry(
-        master = root,      
-        textvariable = log_time_post_val, 
-        width = 4,   
-        font = ("Courier", 14),
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR, 
-        relief = "solid",
-        bd = 1
-    )
-
-buttons["pull_accel_entry"] = tk.Entry(
-        master = root,        
-        textvariable = pull_accel_val, 
-        width = 4,   
-        font = ("Courier", 14),
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR,  
-        relief = "solid",
-        bd = 1
-    )
-
-buttons["pull_decel_entry"] = tk.Entry(
-        master = root,        
-        textvariable = pull_decel_val, 
-        width = 4,   
-        font = ("Courier", 14),
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR,  
-        relief = "solid",
-        bd = 1
-    )
-
-buttons["pull_rot_entry"] = tk.Entry(
-        master = root,        
-        textvariable = pull_rot_val, 
-        width = 4,   
-        font = ("Courier", 14),
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR, 
-        relief = "solid",
-        bd = 1
-    )
-
-buttons["pull_speed_entry"] = tk.Entry(
-        master = root,        
-        textvariable = pull_speed_val, 
-        font = ("Courier", 14),
-        width = 4,
-        bg = BUTTONCOLOR,
-        fg = FONTCOLOR,
-        insertbackground = FONTCOLOR,  
-        relief = "solid",
-        bd = 1
-    )
-
-buttons["start_dynamic"] = tk.Button(
-    root,
-    text = "Start Dynamic",
-    command = startDynamic,
-    width = 14,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground = WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 14),
-    cursor = "hand2"
-)
-
-buttons["darkButton"] = tk.Button(
-    root,
-    text = "⏾",
-    command = darkLight,
-    width = 3,
-    height = 1,
-    relief = "solid",
-    state = "normal",
-    bg = BUTTONCOLOR,
-    bd = 1,
-    activebackground= WINDOWCOLOR,
-    activeforeground = "white",
-    fg = FONTCOLOR,
-    font = ("Courier", 16),
-    cursor = "hand2"
-
-)
-
-
-# variables for values after static & dynamic tests, FIXME: unsure if they're placed in the right spot in the program... diff scope?
-avg_force = tk.StringVar(value = '-') 
-max_force = tk.StringVar(value = '-')
-
-ang_disp_x = tk.StringVar(value = '-')
-ang_disp_y = tk.StringVar(value = '-')
-ang_disp_z = tk.StringVar(value = '-')
-max_vel_x = tk.StringVar(value = '-')
-max_vel_y = tk.StringVar(value = '-')
-max_vel_z = tk.StringVar(value = '-')
-max_accel_x = tk.StringVar(value = '-')
-max_accel_y = tk.StringVar(value = '-')
-max_accel_z = tk.StringVar(value = '-')
+for name, cfg in radio_configs.items():
+    buttons[name] = create_radiobutton(root, **cfg)
 
 def main():
     setupWindow()
