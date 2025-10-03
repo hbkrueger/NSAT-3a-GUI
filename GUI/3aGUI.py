@@ -10,7 +10,7 @@ import json
 import threading
 
 class PiClient:
-    def __init__(self, host="192.168.1.2", port=5050, callback=None): # Pi static IP: 192.168.1.2
+    def __init__(self, host="10.55.0.1", port=5050, callback=None): # Pi static IP: 192.168.1.2
         self.host = host
         self.port = port
         self.sock = None
