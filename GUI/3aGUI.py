@@ -1,10 +1,57 @@
-import random, os, json, tkinter as tk
+import random, os, json, socket, threading, tkinter as tk
 from tkinter import filedialog as fd, messagebox
 from datetime import datetime
 from imu_win import open_imu_window
 from motor_win import open_motor_window
 from LC_win import open_lc_window
 
+import socket
+import json
+import threading
+
+class PiClient:
+    def __init__(self, host="192.168.1.2", port=5050, callback=None): # Pi static IP: 192.168.1.2
+        self.host = host
+        self.port = port
+        self.sock = None
+        self.running = False
+        self.callback = callback  # function to call with each sample
+
+    def start(self):
+        self.running = True
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        if self.callback:
+            self.callback({"status": "PiClient thread started..."})
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(5)  # timeout so it doesn't hang forever
+            self.sock.connect((self.host, self.port))
+            self.callback({"status": "Pi Connected."})
+            self.sock.sendall(b"SUBSCRIBE\n")
+
+            buffer = ""
+            while self.running:
+                data = self.sock.recv(4096).decode("utf-8")
+                if not data:
+                    break
+                buffer += data
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    sample = json.loads(line)
+                    if self.callback:
+                        self.callback(sample)
+        except Exception as e:
+            if self.callback:
+                self.callback({"status": f"Not connected to Pi: {e}"})
+        finally:
+            if self.sock:
+                self.sock.close()
+
+
+    def stop(self):
+        self.running = False
 
 class GUI:
     FONTCOLOR="#E0E0E0"
@@ -19,7 +66,7 @@ class GUI:
                    height=720, 
                    bg=self.WINDOWCOLOR, 
                    highlightthickness=0) 
-        
+
         # StringVars
         self.static_motor_direction=tk.StringVar(value="extension") 
         self.dynamic_motor_direction=tk.StringVar(value="extension")
@@ -82,6 +129,8 @@ class GUI:
 
         self.initialize()
 
+    #=========================misc. functions=========================
+
     def disable_close(self): # disable closing with [x]
         messagebox.showinfo("Notice", "Please use the Exit button to close this window.")
     
@@ -92,7 +141,7 @@ class GUI:
         self.root.configure(bg=self.WINDOWCOLOR)
         self.canvas.pack() # pack canvas onto window
         self.root.protocol("WM_DELETE_WINDOW", self.disable_close)
-
+    
     def exit_function(self):
         # TODO Release all comm ports, send whatever is needed to each device to power down, close windows etc.
         self.root.destroy()
@@ -140,7 +189,7 @@ class GUI:
     def create_radiobutton(self, parent, text, variable, value, width=10,
                         bg=WINDOWCOLOR, activebackground=WINDOWCOLOR,
                         activeforeground="white", fg=FONTCOLOR,
-                        selectcolor=BUTTONCOLOR, font=("Courier", 14)):
+                        selectcolor=BUTTONCOLOR, font=("Courier", 14), command=None):
 
         return tk.Radiobutton(
             parent,
@@ -154,7 +203,8 @@ class GUI:
             fg=fg,
             selectcolor=selectcolor,
             font=font,
-            cursor="hand2"
+            cursor="hand2",
+            command=command
         )
 
     def create_entry(self, parent, textvar, width, font=("Courier", 14)):
@@ -169,6 +219,50 @@ class GUI:
                 relief="solid", 
                 bd=1
             )
+    def write_results(self, test):
+        if test == "static":
+            if self.static_file_name.get(): # if user has entered static_file_name
+                with open(f"{self.generate_file_name("static")}.csv", "w") as static_result:
+                    static_result.write("example static results")
+
+        elif test == "dynamic":
+            if self.dynamic_file_name.get(): # if user has entered dynamic_file_name
+                with open(f"{self.generate_file_name("dynamic")}.csv", "w") as dynamic_result:
+                    dynamic_result.write("example dynamic results")
+
+    def generate_file_name(self, test_type):
+        now = datetime.now()
+
+        # timestamp formatted as: YYYY-MM-DD-HHMMSS
+        timestamp = ( 
+                    f"{now.year}-{now.month:02}-{now.day:02}-{now.hour:02}"
+                    f"{now.minute:02}{now.second:02}"
+        )
+
+        if hasattr(self, "folder_path"):
+            # need some check to see if user has entered something
+            name = ''
+            if test_type == "static":
+                    # set preset name: YYYY-MM-DD-HHMMSS-<motor_direction>
+                    preset_name = f"{timestamp}-{self.static_motor_direction.get()}" 
+                    self.static_file_name.set(preset_name)
+                    # join root path + name of static result file    
+                    name = os.path.join(self.folder_path, self.static_file_name.get())
+                    
+            elif test_type == "dynamic":
+                    # set preset name: YYYY-MM-DD-HHMMSS-<anticipation>-<motor_direction>
+                    preset_name = f"{timestamp}-{self.anticipation.get()}-{self.dynamic_motor_direction.get()}" 
+                    self.dynamic_file_name.set(preset_name)
+                    # join root path + name of dynamic result file
+                    name = os.path.join(self.folder_path, self.dynamic_file_name.get()) 
+            return name
+
+    def imu_status(self): # imu connection confirmation TODO: implement
+        return random.choice([True, False])
+    def motor_status(self):# motor connection confirmation TODO: implement
+        return random.choice([True, False])
+    def lc_status(self):# load cell connection confirmation TODO: implement
+        return random.choice([True, False])
 
     def anticipated(self):
         if (self.dynamicWindow is None or not self.dynamicWindow.winfo_exists()) and (self.staticWindow is None or not self.staticWindow.winfo_exists()): # if staticWindow / dynamicWindow aren't open 
@@ -216,7 +310,7 @@ class GUI:
                         dynamicWindow.destroy()         
 
                 countdown()
-
+    
     def unanticipated(self):
         count_to_rand=0  # start random pull counter at 0
         post_counter=1   # start counting at 1 after random pull
@@ -263,7 +357,17 @@ class GUI:
                 else:
                     post_countup()
             
-            random_count()
+            random_count()    
+
+    def handle_pi_messages(self, sample):
+        if "status" in sample: # status will be in sample data when booting up & when not connected
+            # Update a Label on the canvas
+            self.canvas.itemconfig(self.texts["pi_status"], text=sample["status"])
+        else: # when only sensor data is coming through
+            self.latest_sample = sample # Save the latest sample
+            self.reload_connections() # Update statuses on the canvas
+
+    #=========================button functions=========================
 
     def dark_light(self): # change visual mode
         self.dark=not self.dark # toggle boolean 
@@ -293,7 +397,7 @@ class GUI:
                 button.config(bg=self.WINDOWCOLOR, activebackground=self.BUTTONCOLOR, fg=self.FONTCOLOR, activeforeground=self.FONTCOLOR)
                 
             for label in self.imuLabels.values():
-                label.config(fg=self.FONTCOLOR, bg=self.BUTTONCOLOR)
+                    label.config(fg=self.FONTCOLOR, bg=self.BUTTONCOLOR)
 
             for text in self.imuTexts.values():
                 self.imuCanvas.itemconfig(text, fill=self.FONTCOLOR)
@@ -303,8 +407,8 @@ class GUI:
             self.motorWindow.configure(bg=self.WINDOWCOLOR)
             self.motorCanvas.configure(bg=self.WINDOWCOLOR)
 
-            for key, button in self.motorButtons.items():
-                if key not in ("accel_entry", "decel_entry", "speed_entry", "rotation_entry"):
+            for name, button in self.motorButtons.items():
+                if name not in ("accel_entry", "decel_entry", "speed_entry", "rotation_entry"):
                     button.config(bg=self.WINDOWCOLOR, activebackground=self.BUTTONCOLOR, fg=self.FONTCOLOR, activeforeground=self.FONTCOLOR)
                 else:
                     button.config(bg=self.WINDOWCOLOR, fg=self.FONTCOLOR, insertbackground=self.FONTCOLOR)
@@ -362,27 +466,28 @@ class GUI:
             self.canvas.itemconfig(text, fill=self.FONTCOLOR)
         
         #update labels
-        for label in self.labels.values():
+        for name, label in self.labels.items():
+            if name == "load_prev":
+                label.config(fg=self.FONTCOLOR, bg=self.WINDOWCOLOR)
+            else:
                 label.config(fg=self.FONTCOLOR, bg=self.BUTTONCOLOR)
 
         for line in self.lines.values():
             self.canvas.itemconfig(line, fill=self.FONTCOLOR)
 
-    def imu_status(self): # imu connection confirmation TODO: implement
-        return random.choice([True, False])
-    def motor_status(self):# motor connection confirmation TODO: implement
-        return random.choice([True, False])
-    def lc_status(self):# load cell connection confirmation TODO: implement
-        return random.choice([True, False])
-
     def reload_connections(self): # update each rectangle's fill color depending on connection status
-        self.imu_color="green" if self.imu_status() else "red"
-        self.motor_color="green" if self.motor_status() else "red"
-        self.lc_color="green" if self.lc_status() else "red"
+        sample = getattr(self, "latest_sample", None) # sample = self.latest_sample, return none if doesn't exist
+        if not sample:
+            return  # no data yet
 
-        self.canvas.itemconfig(self.rects["imu"], fill=self.imu_color)
-        self.canvas.itemconfig(self.rects["motor"], fill=self.motor_color)
-        self.canvas.itemconfig(self.rects["lc"], fill=self.lc_color)
+        # IMU check: are accel values non-zero-ish?
+        imu_ok = any(abs(sample.get(k, 0)) > 0.001 for k in ["ax", "ay", "az"])
+        self.canvas.itemconfig(self.rects["imu"], fill="green" if imu_ok else "red")
+
+        # Load cell check: is Newtons value changing?
+        lc_ok = abs(sample.get("Newtons", 0)) > 0.001
+        self.canvas.itemconfig(self.rects["lc"], fill="green" if lc_ok else "red")
+
 
     def standalone_imu(self): # open IMU window  #TODO create IMU graph, make start button work, read IMU data correctly
         if self.canvas.itemcget(self.rects["imu"], "fill") == "green": # if IMU is connected
@@ -472,44 +577,6 @@ class GUI:
             self.folder_path = None
 
         self.choose_folder(choose=False) # run choose_folder but skip choosing (only updates UI)
-        
-    def write_results(self, test):
-        if test == "static":
-            if self.static_file_name.get(): # if user has entered static_file_name
-                with open(f"{self.generate_file_name("static")}.csv", "w") as static_result:
-                    static_result.write("example static results")
-
-        elif test == "dynamic":
-            if self.dynamic_file_name.get(): # if user has entered dynamic_file_name
-                with open(f"{self.generate_file_name("dynamic")}.csv", "w") as dynamic_result:
-                    dynamic_result.write("example dynamic results")
-
-    def generate_file_name(self, test_type):
-        now = datetime.now()
-
-        # timestamp formatted as: YYYY-MM-DD-HHMMSS
-        timestamp = ( 
-                    f"{now.year}-{now.month:02}-{now.day:02}-{now.hour:02}"
-                    f"{now.minute:02}{now.second:02}"
-        )
-
-        if hasattr(self, "folder_path"):
-            # need some check to see if user has entered something
-            name = ''
-            if test_type == "static":
-                    # set preset name: YYYY-MM-DD-HHMMSS-<motor_direction>
-                    preset_name = f"{timestamp}-{self.static_motor_direction.get()}" 
-                    self.static_file_name.set(preset_name)
-                    # join root path + name of static result file    
-                    name = os.path.join(self.folder_path, self.static_file_name.get())
-                    
-            elif test_type == "dynamic":
-                    # set preset name: YYYY-MM-DD-HHMMSS-<anticipation>-<motor_direction>
-                    preset_name = f"{timestamp}-{self.anticipation.get()}-{self.dynamic_motor_direction.get()}" 
-                    self.dynamic_file_name.set(preset_name)
-                    # join root path + name of dynamic result file
-                    name = os.path.join(self.folder_path, self.dynamic_file_name.get()) 
-            return name
 
     def start_static(self): #TODO: implement data output
         time_left_down = 5
@@ -575,7 +642,11 @@ class GUI:
         self.dynamic_file_path = self.generate_file_name("dynamic")
         self.write_results("dynamic") 
 
+    #=========================text/widget related functions=========================
+
     def canvas_elements(self): # define and place all canvas elements
+        # pi related:
+        self.texts["pi_status"] = self.canvas.create_text(15, 693, font=("Courier", 14), fill=self.FONTCOLOR, anchor = "w")
         # lines
         self.lines[1] = self.canvas.create_line(10, 150, 1270, 150, fill=self.FONTCOLOR, width=2)
         self.lines[2] = self.canvas.create_line(300, 10, 300, 140, fill=self.FONTCOLOR, width=1)
@@ -583,7 +654,8 @@ class GUI:
         self.lines[4] = self.canvas.create_line(780, 160, 780, 325, fill=self.FONTCOLOR, width=1) 
         self.lines[5] = self.canvas.create_line(10, 335, 1270, 335, fill=self.FONTCOLOR, width=2)
         self.lines[6] = self.canvas.create_line(381, 400, 381, 465, fill=self.FONTCOLOR, width=1)
-        self.lines[7] = self.canvas.create_line(780, 345, 780, 710, fill=self.FONTCOLOR, width=1)
+        self.lines[7] = self.canvas.create_line(780, 345, 780, 655, fill=self.FONTCOLOR, width=1)
+        self.lines[8] = self.canvas.create_line(10, 665, 1270, 665, fill = self.FONTCOLOR, width = 2)
         # connection info
         self.texts["connection_info"] = self.canvas.create_text(125, 24, text="Component Status", font=("Courier", 16, "underline"), fill=self.FONTCOLOR)
         self.texts["imu_status"] = self.canvas.create_text(88, 60, text="IMU", font=("Courier", 14), fill=self.FONTCOLOR) 
@@ -621,45 +693,53 @@ class GUI:
 
         # dynamic assessment
         self.texts["dynamic_assessment"] = self.canvas.create_text(136, 370, text="Dynamic Assessment", font=("Courier", 16, "underline"), fill=self.FONTCOLOR)
-        self.texts["time_window"] = self.canvas.create_text(187, 520, text="Countdown (sec):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["log_time_pre"] = self.canvas.create_text(247, 560, text="Log Time Pre (sec):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["log_time_post"] = self.canvas.create_text(242, 600, text="Log Time Post (sec):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["pull_accel"] = self.canvas.create_text(570, 520, text="Pull Accel. (m/sec^2):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["pull_decel"] = self.canvas.create_text(570, 560, text="Pull Decel. (m/sec^2):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["pull_rot"] = self.canvas.create_text(604, 600, text="Pull Rot. (deg):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["pull_speed"] = self.canvas.create_text(598, 640, text="Pull Speed (RPM):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["time_window"] = self.canvas.create_text(264, 500, text="Countdown (sec):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["log_time_pre"] = self.canvas.create_text(247, 540, text="Log Time Pre (sec):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["log_time_post"] = self.canvas.create_text(242, 580, text="Log Time Post (sec):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["pull_accel"] = self.canvas.create_text(570, 500, text="Pull Accel. (m/sec^2):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["pull_decel"] = self.canvas.create_text(570, 540, text="Pull Decel. (m/sec^2):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["pull_rot"] = self.canvas.create_text(604, 580, text="Pull Rot. (deg):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["pull_speed"] = self.canvas.create_text(598, 620, text="Pull Speed (RPM):", font=("Courier", 14), fill=self.FONTCOLOR)
 
         # dynamic results
-        self.texts["dynamic_results"] = self.canvas.create_text(896, 370, text="Dynamic Results", font=("Courier", 16, "underline"), fill=self.FONTCOLOR)
-        self.texts["dynamic_log_file"] = self.canvas.create_text(877, 428, text="Log File Name:", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["dynamic_results"] = self.canvas.create_text(896, 350, text="Dynamic Results", font=("Courier", 16, "underline"), fill=self.FONTCOLOR)
+        self.texts["dynamic_log_file"] = self.canvas.create_text(877, 408, text="Log File Name:", font=("Courier", 14), fill=self.FONTCOLOR)
         self.labels["dynamic_log_label"] = tk.Label(root, textvariable=self.dynamic_file_name, font=("Courier", 11), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=34, height=1, anchor="w", padx=3)
-        self.labels["dynamic_log_label"].place(x=964, y=417)
-        self.texts["dynamic_log_hint"] = self.canvas.create_text(984, 447, text="(Hover over name for full address)", font=("Courier", 10), fill=self.FONTCOLOR, anchor="w")
-        self.texts["ang_disp"] = self.canvas.create_text(916, 520, text="Max Ang. Disp. (deg):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["max_vel"] = self.canvas.create_text(938, 560, text="Max Vel. (m/sec):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts["max_accel"] = self.canvas.create_text(916, 600, text="Max Accel. (m/sec^2):", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts['x'] = self.canvas.create_text(1077, 490, text="X", font=("Courier", 14,), fill=self.FONTCOLOR)
-        self.texts['y'] = self.canvas.create_text(1151, 490, text="Y", font=("Courier", 14), fill=self.FONTCOLOR)
-        self.texts['z'] = self.canvas.create_text(1227, 490, text="Z", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.labels["dynamic_log_label"].place(x=964, y=397)
+        self.texts["dynamic_log_hint"] = self.canvas.create_text(984, 427, text="(Hover over name for full address)", font=("Courier", 10), fill=self.FONTCOLOR, anchor="w")
+        self.texts["ang_disp"] = self.canvas.create_text(916, 500, text="Max Ang. Disp. (deg):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["max_vel"] = self.canvas.create_text(938, 540, text="Max Vel. (m/sec):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts["max_accel"] = self.canvas.create_text(916, 580, text="Max Accel. (m/sec^2):", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts['x'] = self.canvas.create_text(1077, 470, text="X", font=("Courier", 14,), fill=self.FONTCOLOR)
+        self.texts['y'] = self.canvas.create_text(1151, 470, text="Y", font=("Courier", 14), fill=self.FONTCOLOR)
+        self.texts['z'] = self.canvas.create_text(1227, 470, text="Z", font=("Courier", 14), fill=self.FONTCOLOR)
         self.labels["ang_disp_x"] = tk.Label(root, textvariable=self.ang_disp_x, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["ang_disp_x"].place(x=1045, y=507)
+        self.labels["ang_disp_x"].place(x=1045, y=487)
         self.labels["ang_disp_y"] = tk.Label(root, textvariable=self.ang_disp_y, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["ang_disp_y"].place(x=1045, y=547)
+        self.labels["ang_disp_y"].place(x=1045, y=527)
         self.labels["ang_disp_z"] = tk.Label(root, textvariable=self.ang_disp_z, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["ang_disp_z"].place(x=1045, y=587)
+        self.labels["ang_disp_z"].place(x=1045, y=567)
         self.labels["max_vel_x"] = tk.Label(root, textvariable=self.max_vel_x, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["max_vel_x"].place(x=1120, y=507)
+        self.labels["max_vel_x"].place(x=1120, y=487)
         self.labels["max_vel_y"] = tk.Label(root, textvariable=self.max_vel_y, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["max_vel_y"].place(x=1120, y=547)
+        self.labels["max_vel_y"].place(x=1120, y=527)
         self.labels["max_vel_z"] = tk.Label(root, textvariable=self.max_vel_z, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["max_vel_z"].place(x=1120, y=587)
+        self.labels["max_vel_z"].place(x=1120, y=567)
         self.labels["max_accel_x"] = tk.Label(root, textvariable=self.max_accel_x, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["max_accel_x"].place(x=1195, y=507)
+        self.labels["max_accel_x"].place(x=1195, y=487)
         self.labels["max_accel_y"] = tk.Label(root, textvariable=self.max_accel_y, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["max_accel_y"].place(x=1195, y=547)
+        self.labels["max_accel_y"].place(x=1195, y=527)
         self.labels["max_accel_z"] = tk.Label(root, textvariable=self.max_accel_z, font=("Courier", 14), fg=self.FONTCOLOR, bg=self.BUTTONCOLOR, bd=1, relief="solid", width=5, height=1)
-        self.labels["max_accel_z"].place(x=1195, y=587)
+        self.labels["max_accel_z"].place(x=1195, y=567)
     
+    def switch_text(self): # switch between time window or countdown depending on chosen test
+        if self.anticipation.get() == "unanticipated": 
+            self.canvas.itemconfig(self.texts["time_window"], text="Time Window (sec):")
+            self.canvas.coords(self.texts["time_window"], 253, 500)
+        elif self.anticipation.get() == "anticipated":
+            self.canvas.itemconfig(self.texts["time_window"], text="Countdown (sec):")
+            self.canvas.coords(self.texts["time_window"], 264, 500)
+
     def widget_setup(self):
         # define button names, configs
         self.button_configs = {
@@ -687,8 +767,8 @@ class GUI:
         "dynamicLeftLateral_r": {"text": "Left Lateral", "variable": self.dynamic_motor_direction, "value": "left_lateral", "width": 11},
         "dynamicFlexion_r": {"text": "Flexion", "variable": self.dynamic_motor_direction, "value": "flexion", "width": 8},
         "dynamicRightLateral_r": {"text": "Right Lateral", "variable": self.dynamic_motor_direction, "value": "right_lateral", "width": 12},
-        "anticipated_r": {"text": "Anticipated", "variable": self.anticipation, "value": "anticipated", "width": 10},
-        "unanticipated_r": {"text": "Unanticipated", "variable": self.anticipation, "value": "unanticipated", "width": 13},
+        "anticipated_r": {"text": "Anticipated", "variable": self.anticipation, "value": "anticipated", "width": 10, "command": self.switch_text},
+        "unanticipated_r": {"text": "Unanticipated", "variable": self.anticipation, "value": "unanticipated", "width": 13, "command": self.switch_text},
         }
         # unpack, create radio buttons
         for name, cfg in self.radio_configs.items():
@@ -750,14 +830,14 @@ class GUI:
         self.widgets["dynamicLeftLateral_r"].place(x=560, y=400)
         self.widgets["dynamicFlexion_r"].place(x=390, y=430)
         self.widgets["dynamicRightLateral_r"].place(x=560, y=430)
-        self.widgets["timeWindowEntry"].place(x=370, y=507)
-        self.widgets["logTimePreEntry"].place(x=370, y=547)
-        self.widgets["logTimePostEntry"].place(x=370, y=587)
-        self.widgets["pullAccelEntry"].place(x=710, y=507)
-        self.widgets["pullDecelEntry"].place(x=710, y=547)
-        self.widgets["pullRotEntry"].place(x=710, y=587)
-        self.widgets["pullSpeedEntry"].place(x=710, y=627)
-        self.widgets["startDynamic"].place(x=30, y=660)
+        self.widgets["timeWindowEntry"].place(x=370, y=487)
+        self.widgets["logTimePreEntry"].place(x=370, y=527)
+        self.widgets["logTimePostEntry"].place(x=370, y=567)
+        self.widgets["pullAccelEntry"].place(x=710, y=487)
+        self.widgets["pullDecelEntry"].place(x=710, y=527)
+        self.widgets["pullRotEntry"].place(x=710, y=567)
+        self.widgets["pullSpeedEntry"].place(x=710, y=607)
+        self.widgets["startDynamic"].place(x=30, y=610)
 
     def show_tooltip(self, event, text_type = None, text=None):
         if text is None:
@@ -813,15 +893,12 @@ class GUI:
         self.lc_status()
         self.widget_setup()
         self.place_widgets()
+        #=====Pi Client=====
+        self.client = PiClient(callback=self.handle_pi_messages)
+        self.client.start()
 
 # run GUI
 root = tk.Tk()
 gui = GUI(root)
 root.mainloop()
 
-
-
-        # if self.anticipated == "unanticipated":
-        #     self.canvas.itemconfig(self.texts["time_window"], text=str("Time Window (sec)"))
-
-        # place somewhere where it will always run^^^
