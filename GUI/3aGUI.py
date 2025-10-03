@@ -222,12 +222,12 @@ class GUI:
     def write_results(self, test):
         if test == "static":
             if self.static_file_name.get(): # if user has entered static_file_name
-                with open(f"{self.generate_file_name("static")}.csv", "w") as static_result:
+                with open(f"{self.generate_file_name('static')}.csv", "w") as static_result:
                     static_result.write("example static results")
 
         elif test == "dynamic":
             if self.dynamic_file_name.get(): # if user has entered dynamic_file_name
-                with open(f"{self.generate_file_name("dynamic")}.csv", "w") as dynamic_result:
+                with open(f"{self.generate_file_name('dynamic')}.csv", "w") as dynamic_result:
                     dynamic_result.write("example dynamic results")
 
     def generate_file_name(self, test_type):
