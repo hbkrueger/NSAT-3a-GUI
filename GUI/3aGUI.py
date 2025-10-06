@@ -6,7 +6,7 @@ from motor_win import open_motor_window
 from LC_win import open_lc_window
 
 class PiClient:
-    def __init__(self, host, port, callback=None): # NSAT_Pi static IP: 192.168.1.2:5050
+    def __init__(self, host, port, callback=None): # nsat_pi static IP: 172.20.10.3:22
         self.host = host
         self.port = port
         self.sock = None
@@ -24,7 +24,6 @@ class PiClient:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5)  # timeout so it doesn't hang forever
             self.sock.connect((self.host, self.port))
-            self.callback({"status": "Connected ✓"})
             self.sock.sendall(b"SUBSCRIBE\n")
 
             buffer = ""
@@ -36,17 +35,23 @@ class PiClient:
 
                 while "\n" in buffer:
                     line, buffer = buffer.split("\n", 1)
-
-                    msg = json.loads(line) # takes the json string and converts it to dictionary
-
-                    if "imu" in msg and "load_cell" in msg: # imu and load_cell are dicts that hold the values
-                        imu_data = msg["imu"] # imu_data = 'ax': ..., 'ay': ..., 'az': ...
-                        lc_data = msg["load_cell"] # lc_data = 'Newtons': ...
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        msg = json.loads(line) # takes the json string and converts it to dictionary
+                    except json.JSONDecodeError:
+                        if self.callback:
+                            self.callback({"status": f"Invalid JSON received: {line}"})
+                        continue
+                    
+                    if "imu" in msg and "load_cell" in msg: # imu and load_cell are dicts that hold the value 
                         if self.callback:
                             self.callback({
-                                "status": "data", # this shows that this callback contains data
-                                "imu": imu_data,
-                                "load_cell": lc_data
+                                "status": "Connected ✓", # this shows that this callback contains data
+                                "imu": msg["imu"], # imu_data = 'ax': ..., 'ay': ..., 'az': ...
+                                "load_cell": msg["load_cell"] # lc_data = 'Newtons': ...
                             })
                     else:
                         # backward compatibility or status messages
@@ -571,11 +576,14 @@ class GUI:
         sample = getattr(self, "latest_sample", None) # sample = self.latest_sample, return none if doesn't exist
         
         if not sample:
+            print("no data")
             return # no data yet
 
         imu_data = sample["imu"] # sample["imu"] = 'ax': ..., 'ay':... etc.
         lc_data = sample["load_cell"] # sample["load_cell"] = 'Newtons': ...
-
+        
+        print(imu_data)
+        
         # IMU check: Any absolute value of a few imu datas are > 0.001? Set missing values to 0
         imu_ok = any(abs(imu_data.get(k, 0)) > 0.001 for k in ["ax", "ay", "az"]) 
         self.canvas.itemconfig(self.rects["imu"], fill="green" if imu_ok else "red")
